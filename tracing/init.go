@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-	"github.com/pbrpc/otel/lifecycle"
+	"github.com/pbrpc/lifecycle"
 )
 
 const envVar = "OTEL_TRACES_EXPORTER"

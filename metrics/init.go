@@ -11,7 +11,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 
-	"github.com/pbrpc/otel/lifecycle"
+	"github.com/pbrpc/lifecycle"
 )
 
 const envVar = "OTEL_METRICS_EXPORTER"

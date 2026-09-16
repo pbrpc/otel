@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 
-	"github.com/pbrpc/otel/lifecycle"
+	"github.com/pbrpc/lifecycle"
 	"github.com/pbrpc/otel/logging"
 	"github.com/pbrpc/otel/metrics"
 	"github.com/pbrpc/otel/tracing"

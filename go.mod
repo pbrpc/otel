@@ -4,6 +4,7 @@ go 1.27.1
 
 require (
 	git.sonicoriginal.software/logger v0.1.0
+	github.com/pbrpc/lifecycle v0.1.0
 	go.opentelemetry.io/contrib/bridges/otelslog v0.20.1
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.22.0

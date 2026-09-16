@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pbrpc/otel/lifecycle"
+	"github.com/pbrpc/lifecycle"
 )
 
 // disableExporters turns every exporter off, so a test that wants one on sets

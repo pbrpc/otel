@@ -21,7 +21,7 @@ import (
 	"git.sonicoriginal.software/logger/handlers/structured"
 	"git.sonicoriginal.software/logger/handlers/tee"
 
-	"github.com/pbrpc/otel/lifecycle"
+	"github.com/pbrpc/lifecycle"
 )
 
 const envVar = "OTEL_LOGS_EXPORTER"
