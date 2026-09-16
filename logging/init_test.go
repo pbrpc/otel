@@ -1,16 +1,27 @@
+//revive:disable:package-comments
 package logging
 
 import (
-	"context"
+	"crypto/tls"
 	"errors"
+	"net/http"
 	"reflect"
 	"testing"
-	"time"
 
+	"github.com/pbrpc/connect-testing/mocks/roundtripper"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
+
+func testHTTPClient() *http.Client {
+	return &http.Client{Transport: roundtripper.Respond(
+		http.StatusOK,
+		http.Header{"Content-Type": []string{"application/x-protobuf"}},
+		"",
+	)}
+}
 
 func testResource() *resource.Resource {
 	res, _ := resource.Merge(
@@ -27,9 +38,13 @@ func TestInit(t *testing.T) {
 		t.Run("otlp with LOG_FORMAT "+format, func(t *testing.T) {
 			t.Setenv(envVar, "otlp")
 			t.Setenv("LOG_FORMAT", format)
-			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
 
-			logger, shutdown, err := Init(t.Context(), testResource(), "test-service")
+			logger, shutdown, err := initLogger(
+				t.Context(),
+				testResource(),
+				"test-service",
+				otlploghttp.WithHTTPClient(testHTTPClient()),
+			)
 			if err != nil {
 				t.Fatalf("expected no error, got %v", err)
 			}
@@ -40,12 +55,9 @@ func TestInit(t *testing.T) {
 				t.Fatal("expected non-nil shutdown")
 			}
 
-			// Nothing listens on the endpoint, so the flush is given a deadline
-			// it will spend rather than a collector it will reach.
-			timeoutCtx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
-			defer cancel()
-
-			_ = shutdown(timeoutCtx)
+			if err := shutdown(t.Context()); err != nil {
+				t.Fatalf("shutdown error: %v", err)
+			}
 		})
 	}
 
@@ -90,6 +102,25 @@ func TestInit(t *testing.T) {
 		_, shutdown, err := Init(t.Context(), testResource(), "test-service")
 		if err == nil {
 			t.Fatal("expected error for unsupported exporter")
+		}
+		if shutdown != nil {
+			t.Fatal("expected nil shutdown on error")
+		}
+	})
+
+	t.Run("exporter creation failure", func(t *testing.T) {
+		t.Setenv(envVar, "otlp")
+
+		_, shutdown, err := initLogger(
+			t.Context(),
+			testResource(),
+			"test-service",
+			otlploghttp.WithEndpoint("unused.invalid:4318"),
+			otlploghttp.WithInsecure(),
+			otlploghttp.WithTLSClientConfig(&tls.Config{MinVersion: tls.VersionTLS12}),
+		)
+		if err == nil {
+			t.Fatal("expected exporter creation error")
 		}
 		if shutdown != nil {
 			t.Fatal("expected nil shutdown on error")

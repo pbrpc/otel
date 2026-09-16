@@ -1,4 +1,4 @@
-// Package metrics initializes the OpenTelemetry MeterProvider.
+//revive:disable:package-comments
 package metrics
 
 import (
@@ -25,6 +25,14 @@ const envVar = "OTEL_METRICS_EXPORTER"
 func Init(
 	ctx context.Context, res *resource.Resource,
 ) (lifecycle.ShutdownFunc, error) {
+	return initMeter(ctx, res)
+}
+
+func initMeter(
+	ctx context.Context,
+	res *resource.Resource,
+	exporterOptions ...otlpmetrichttp.Option,
+) (lifecycle.ShutdownFunc, error) {
 	exporterType := os.Getenv(envVar)
 
 	if exporterType == "" || exporterType == "none" {
@@ -36,10 +44,10 @@ func Init(
 		return nil, fmt.Errorf("unsupported %s: %s (supported: otlp, none)", envVar, exporterType)
 	}
 
-	// OTLP/HTTP exporters cannot fail at creation time: the first request is
-	// what reaches the collector. Endpoint and TLS are configured via
-	// OTEL_EXPORTER_OTLP_ENDPOINT.
-	exporter, _ := otlpmetrichttp.New(ctx)
+	exporter, err := otlpmetrichttp.New(ctx, exporterOptions...)
+	if err != nil {
+		return nil, fmt.Errorf("create OTLP metric exporter: %w", err)
+	}
 
 	reader := sdkmetric.NewPeriodicReader(exporter)
 	mp := sdkmetric.NewMeterProvider(

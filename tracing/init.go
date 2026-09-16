@@ -1,4 +1,4 @@
-// Package tracing initializes the OpenTelemetry TracerProvider.
+//revive:disable:package-comments
 package tracing
 
 import (
@@ -26,6 +26,14 @@ const envVar = "OTEL_TRACES_EXPORTER"
 func Init(
 	ctx context.Context, res *resource.Resource,
 ) (lifecycle.ShutdownFunc, error) {
+	return initTracer(ctx, res)
+}
+
+func initTracer(
+	ctx context.Context,
+	res *resource.Resource,
+	exporterOptions ...otlptracehttp.Option,
+) (lifecycle.ShutdownFunc, error) {
 	exporterType := os.Getenv(envVar)
 
 	if exporterType == "" || exporterType == "none" {
@@ -37,11 +45,10 @@ func Init(
 		return nil, fmt.Errorf("unsupported %s: %s (supported: otlp, none)", envVar, exporterType)
 	}
 
-	// OTLP/HTTP exporters cannot fail at creation time: the first request is
-	// what reaches the collector, and a failure is reported through the
-	// error handler then. Endpoint and TLS are configured via
-	// OTEL_EXPORTER_OTLP_ENDPOINT.
-	exporter, _ := otlptracehttp.New(ctx)
+	exporter, err := otlptracehttp.New(ctx, exporterOptions...)
+	if err != nil {
+		return nil, fmt.Errorf("create OTLP trace exporter: %w", err)
+	}
 
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),

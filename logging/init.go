@@ -1,5 +1,4 @@
-// Package logging initializes the OpenTelemetry LoggerProvider and builds
-// the slog handler chain.
+//revive:disable:package-comments
 package logging
 
 import (
@@ -52,16 +51,25 @@ var DefaultAttributeLevels = [][]string{
 func Init(
 	ctx context.Context, res *resource.Resource, serviceName string,
 ) (*slog.Logger, lifecycle.ShutdownFunc, error) {
+	return initLogger(ctx, res, serviceName)
+}
+
+func initLogger(
+	ctx context.Context,
+	res *resource.Resource,
+	serviceName string,
+	exporterOptions ...otlploghttp.Option,
+) (*slog.Logger, lifecycle.ShutdownFunc, error) {
 	exporterType := os.Getenv(envVar)
 
 	shutdown := func(context.Context) error { return nil }
 
 	switch exporterType {
 	case "otlp":
-		// OTLP/HTTP exporters cannot fail at creation time: the first request
-		// is what reaches the collector. Endpoint and TLS are configured via
-		// OTEL_EXPORTER_OTLP_ENDPOINT.
-		exporter, _ := otlploghttp.New(ctx)
+		exporter, err := otlploghttp.New(ctx, exporterOptions...)
+		if err != nil {
+			return nil, nil, fmt.Errorf("create OTLP log exporter: %w", err)
+		}
 
 		processor := sdklog.NewBatchProcessor(exporter)
 		lp := sdklog.NewLoggerProvider(

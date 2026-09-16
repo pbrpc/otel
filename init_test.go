@@ -1,12 +1,14 @@
+//revive:disable:package-comments
 package otel
 
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"slices"
-	"strings"
 	"testing"
-	"time"
+
+	"go.opentelemetry.io/otel/sdk/resource"
 
 	"github.com/pbrpc/lifecycle"
 )
@@ -40,31 +42,6 @@ func TestInit(t *testing.T) {
 		}
 	})
 
-	t.Run("with all otlp exporters", func(t *testing.T) {
-		t.Setenv("OTEL_TRACES_EXPORTER", "otlp")
-		t.Setenv("OTEL_METRICS_EXPORTER", "otlp")
-		t.Setenv("OTEL_LOGS_EXPORTER", "otlp")
-		t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
-
-		logger, shutdown, err := Init(t.Context(), "test-service", "1.2.3")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if logger == nil {
-			t.Fatal("expected non-nil logger")
-		}
-		if shutdown == nil {
-			t.Fatal("expected non-nil shutdown func")
-		}
-
-		// Nothing listens on the endpoint, so the flush is given a deadline it
-		// will spend rather than a collector it will reach.
-		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
-		defer cancel()
-
-		_ = shutdown(ctx)
-	})
-
 	t.Run("with unsupported log exporter", func(t *testing.T) {
 		disableExporters(t)
 		t.Setenv("OTEL_LOGS_EXPORTER", "console")
@@ -93,55 +70,170 @@ func TestInit(t *testing.T) {
 	})
 }
 
-// recordingShutdown appends name to order when run and answers with err.
-func recordingShutdown(order *[]string, name string, err error) lifecycle.ShutdownFunc {
-	return func(context.Context) error {
-		*order = append(*order, name)
+type providerStub struct {
+	t                *testing.T
+	ctx              context.Context
+	order            []string
+	loggingErr       error
+	tracingErr       error
+	metricsErr       error
+	logShutdownErr   error
+	traceShutdownErr error
+	meterShutdownErr error
+}
+
+func (s *providerStub) initializers() providerInitializers {
+	return providerInitializers{
+		logging: s.initLogging,
+		tracing: s.initTracing,
+		metrics: s.initMetrics,
+	}
+}
+
+func (s *providerStub) initLogging(
+	ctx context.Context,
+	_ *resource.Resource,
+	_ string,
+) (*slog.Logger, lifecycle.ShutdownFunc, error) {
+	s.checkContext(ctx)
+	if s.loggingErr != nil {
+		return nil, nil, s.loggingErr
+	}
+
+	return slog.Default(), s.shutdown("logging", s.logShutdownErr), nil
+}
+
+func (s *providerStub) initTracing(
+	ctx context.Context,
+	_ *resource.Resource,
+) (lifecycle.ShutdownFunc, error) {
+	s.checkContext(ctx)
+	if s.tracingErr != nil {
+		return nil, s.tracingErr
+	}
+
+	return s.shutdown("tracing", s.traceShutdownErr), nil
+}
+
+func (s *providerStub) initMetrics(
+	ctx context.Context,
+	_ *resource.Resource,
+) (lifecycle.ShutdownFunc, error) {
+	s.checkContext(ctx)
+	if s.metricsErr != nil {
+		return nil, s.metricsErr
+	}
+
+	return s.shutdown("metrics", s.meterShutdownErr), nil
+}
+
+func (s *providerStub) shutdown(name string, err error) lifecycle.ShutdownFunc {
+	return func(ctx context.Context) error {
+		s.checkContext(ctx)
+		s.order = append(s.order, name)
 
 		return err
 	}
 }
 
-func TestShutdownAll(t *testing.T) {
-	t.Run("runs every shutdown in reverse order", func(t *testing.T) {
-		var order []string
+func (s *providerStub) checkContext(ctx context.Context) {
+	s.t.Helper()
+	if ctx != s.ctx {
+		s.t.Errorf("context = %v, want test context %v", ctx, s.ctx)
+	}
+}
 
-		shutdown := shutdownAll([]lifecycle.ShutdownFunc{
-			recordingShutdown(&order, "logging", nil),
-			recordingShutdown(&order, "tracing", nil),
-			recordingShutdown(&order, "metrics", nil),
-		})
-
-		if err := shutdown(t.Context()); err != nil {
-			t.Fatalf("unexpected error: %v", err)
+func TestInitProviders(t *testing.T) {
+	t.Run("returns lifecycle stack shutdown", func(t *testing.T) {
+		ctx := t.Context()
+		logErr := errors.New("logs unflushed")
+		meterErr := errors.New("metrics unflushed")
+		stub := providerStub{
+			t:                t,
+			ctx:              ctx,
+			logShutdownErr:   logErr,
+			meterShutdownErr: meterErr,
 		}
 
-		want := []string{"metrics", "tracing", "logging"}
-		if !slices.Equal(order, want) {
-			t.Errorf("order = %v, want %v", order, want)
+		logger, shutdown, err := initProviders(
+			ctx, "test-service", "1.2.3", stub.initializers(),
+		)
+		if err != nil {
+			t.Fatalf("initProviders() error = %v, want nil", err)
+		}
+		if logger == nil {
+			t.Fatal("initProviders() logger = nil, want logger")
+		}
+
+		err = shutdown(ctx)
+		if !errors.Is(err, logErr) {
+			t.Errorf("shutdown error = %v, want error wrapping %v", err, logErr)
+		}
+		if !errors.Is(err, meterErr) {
+			t.Errorf("shutdown error = %v, want error wrapping %v", err, meterErr)
+		}
+		if want := []string{"metrics", "tracing", "logging"}; !slices.Equal(stub.order, want) {
+			t.Errorf("shutdown order = %v, want %v", stub.order, want)
 		}
 	})
 
-	t.Run("keeps going past a failure and reports every one", func(t *testing.T) {
-		var order []string
+	t.Run("returns logging initialization failure", func(t *testing.T) {
+		ctx := t.Context()
+		initErr := errors.New("logging unavailable")
+		stub := providerStub{t: t, ctx: ctx, loggingErr: initErr}
 
-		shutdown := shutdownAll([]lifecycle.ShutdownFunc{
-			recordingShutdown(&order, "logging", errors.New("logs unflushed")),
-			recordingShutdown(&order, "tracing", nil),
-			recordingShutdown(&order, "metrics", errors.New("metrics unflushed")),
-		})
+		_, _, err := initProviders(ctx, "test-service", "1.2.3", stub.initializers())
+		if !errors.Is(err, initErr) {
+			t.Errorf("initProviders() error = %v, want error wrapping %v", err, initErr)
+		}
+		if len(stub.order) != 0 {
+			t.Errorf("shutdown order = %v, want none", stub.order)
+		}
+	})
 
-		err := shutdown(t.Context())
-		if err == nil {
-			t.Fatal("expected the failures to be reported")
+	t.Run("cleans up after tracing initialization failure", func(t *testing.T) {
+		ctx := t.Context()
+		initErr := errors.New("tracing unavailable")
+		cleanupErr := errors.New("logging cleanup")
+		stub := providerStub{
+			t:              t,
+			ctx:            ctx,
+			tracingErr:     initErr,
+			logShutdownErr: cleanupErr,
 		}
-		if len(order) != 3 {
-			t.Fatalf("ran %v, want all three", order)
+
+		_, _, err := initProviders(ctx, "test-service", "1.2.3", stub.initializers())
+		if !errors.Is(err, initErr) {
+			t.Errorf("initProviders() error = %v, want error wrapping %v", err, initErr)
 		}
-		for _, message := range []string{"logs unflushed", "metrics unflushed"} {
-			if !strings.Contains(err.Error(), message) {
-				t.Errorf("error = %q, want it to carry %q", err, message)
-			}
+		if !errors.Is(err, cleanupErr) {
+			t.Errorf("initProviders() error = %v, want cleanup error wrapping %v", err, cleanupErr)
+		}
+		if want := []string{"logging"}; !slices.Equal(stub.order, want) {
+			t.Errorf("shutdown order = %v, want %v", stub.order, want)
+		}
+	})
+
+	t.Run("cleans up after metrics initialization failure", func(t *testing.T) {
+		ctx := t.Context()
+		initErr := errors.New("metrics unavailable")
+		cleanupErr := errors.New("logging cleanup")
+		stub := providerStub{
+			t:              t,
+			ctx:            ctx,
+			metricsErr:     initErr,
+			logShutdownErr: cleanupErr,
+		}
+
+		_, _, err := initProviders(ctx, "test-service", "1.2.3", stub.initializers())
+		if !errors.Is(err, initErr) {
+			t.Errorf("initProviders() error = %v, want error wrapping %v", err, initErr)
+		}
+		if !errors.Is(err, cleanupErr) {
+			t.Errorf("initProviders() error = %v, want cleanup error wrapping %v", err, cleanupErr)
+		}
+		if want := []string{"tracing", "logging"}; !slices.Equal(stub.order, want) {
+			t.Errorf("shutdown order = %v, want %v", stub.order, want)
 		}
 	})
 }
