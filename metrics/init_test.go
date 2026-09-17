@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/pbrpc/connect-testing/mocks/roundtripper"
+	"github.com/pbrpc/testing/mocks/roundtripper"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"

@@ -25,7 +25,7 @@ const envVar = "OTEL_TRACES_EXPORTER"
 // Returns a ShutdownFunc to flush and close the provider.
 func Init(
 	ctx context.Context, res *resource.Resource,
-) (lifecycle.ShutdownFunc, error) {
+) (lifecycle.CleanupFunc, error) {
 	return initTracer(ctx, res)
 }
 
@@ -33,7 +33,7 @@ func initTracer(
 	ctx context.Context,
 	res *resource.Resource,
 	exporterOptions ...otlptracehttp.Option,
-) (lifecycle.ShutdownFunc, error) {
+) (lifecycle.CleanupFunc, error) {
 	exporterType := os.Getenv(envVar)
 
 	if exporterType == "" || exporterType == "none" {

@@ -47,10 +47,10 @@ var DefaultAttributeLevels = [][]string{
 //   - "text" or "flat": tee to stdout in flat text format
 //   - default (including "structured" or empty): tee to stdout in structured format
 //
-// Returns the logger, a ShutdownFunc for the LoggerProvider, and any error.
+// Returns the logger, a CleanupFunc for the LoggerProvider, and any error.
 func Init(
 	ctx context.Context, res *resource.Resource, serviceName string,
-) (*slog.Logger, lifecycle.ShutdownFunc, error) {
+) (*slog.Logger, lifecycle.CleanupFunc, error) {
 	return initLogger(ctx, res, serviceName)
 }
 
@@ -59,7 +59,7 @@ func initLogger(
 	res *resource.Resource,
 	serviceName string,
 	exporterOptions ...otlploghttp.Option,
-) (*slog.Logger, lifecycle.ShutdownFunc, error) {
+) (*slog.Logger, lifecycle.CleanupFunc, error) {
 	exporterType := os.Getenv(envVar)
 
 	shutdown := func(context.Context) error { return nil }

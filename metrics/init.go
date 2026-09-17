@@ -21,10 +21,10 @@ const envVar = "OTEL_METRICS_EXPORTER"
 //   - "otlp": OTLP/HTTP exporter to the collector's HTTP receiver
 //   - "" or "none": no metrics (returns noop shutdown)
 //
-// Returns a ShutdownFunc to flush and close the provider.
+// Returns a CleanupFunc to flush and close the provider.
 func Init(
 	ctx context.Context, res *resource.Resource,
-) (lifecycle.ShutdownFunc, error) {
+) (lifecycle.CleanupFunc, error) {
 	return initMeter(ctx, res)
 }
 
@@ -32,7 +32,7 @@ func initMeter(
 	ctx context.Context,
 	res *resource.Resource,
 	exporterOptions ...otlpmetrichttp.Option,
-) (lifecycle.ShutdownFunc, error) {
+) (lifecycle.CleanupFunc, error) {
 	exporterType := os.Getenv(envVar)
 
 	if exporterType == "" || exporterType == "none" {

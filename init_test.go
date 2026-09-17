@@ -94,7 +94,7 @@ func (s *providerStub) initLogging(
 	ctx context.Context,
 	_ *resource.Resource,
 	_ string,
-) (*slog.Logger, lifecycle.ShutdownFunc, error) {
+) (*slog.Logger, lifecycle.CleanupFunc, error) {
 	s.checkContext(ctx)
 	if s.loggingErr != nil {
 		return nil, nil, s.loggingErr
@@ -106,7 +106,7 @@ func (s *providerStub) initLogging(
 func (s *providerStub) initTracing(
 	ctx context.Context,
 	_ *resource.Resource,
-) (lifecycle.ShutdownFunc, error) {
+) (lifecycle.CleanupFunc, error) {
 	s.checkContext(ctx)
 	if s.tracingErr != nil {
 		return nil, s.tracingErr
@@ -118,7 +118,7 @@ func (s *providerStub) initTracing(
 func (s *providerStub) initMetrics(
 	ctx context.Context,
 	_ *resource.Resource,
-) (lifecycle.ShutdownFunc, error) {
+) (lifecycle.CleanupFunc, error) {
 	s.checkContext(ctx)
 	if s.metricsErr != nil {
 		return nil, s.metricsErr
@@ -127,7 +127,7 @@ func (s *providerStub) initMetrics(
 	return s.shutdown("metrics", s.meterShutdownErr), nil
 }
 
-func (s *providerStub) shutdown(name string, err error) lifecycle.ShutdownFunc {
+func (s *providerStub) shutdown(name string, err error) lifecycle.CleanupFunc {
 	return func(ctx context.Context) error {
 		s.checkContext(ctx)
 		s.order = append(s.order, name)
