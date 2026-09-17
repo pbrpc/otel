@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## 0.1.1 - 2026-09-17
+#### Bug Fixes
+- update testing and lifecycle dependency - (04a4b3e) - Nathan Blair
+
+- - -
+
 ## 0.1.0 - 2026-09-16
 #### Features
 - use lifecycle shutdown stack - (7e6450c) - Nathan Blair
