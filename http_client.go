@@ -7,7 +7,10 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-// NewHTTPClient creates an HTTP client with OpenTelemetry trace propagation.
-func NewHTTPClient(base http.RoundTripper) *http.Client {
-	return &http.Client{Transport: otelhttp.NewTransport(base)}
+// NewTransport wraps base with OpenTelemetry instrumentation: a client span
+// per request, and trace propagation on its headers. It sits wherever in a
+// transport chain the requests are addressed to the host they go to, so the
+// span names that host.
+func NewTransport(base http.RoundTripper) http.RoundTripper {
+	return otelhttp.NewTransport(base)
 }
