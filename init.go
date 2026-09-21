@@ -31,10 +31,12 @@ type providerInitializers struct {
 // Init initializes all OpenTelemetry providers: logging first (so tracing and
 // metrics initialization can log), then tracing, then metrics.
 //
-// Name and version are supplied by the caller, which reads them from the
-// server configuration every other part of the process reads. They win over
-// OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES, so a server's identity has
-// one source rather than one per telemetry vendor.
+// Name, version, and instance id are supplied by the caller: the first two
+// read from the server configuration every other part of the process reads,
+// the id generated where the process is assembled, unique among the instances
+// sharing the name. They win over OTEL_SERVICE_NAME and
+// OTEL_RESOURCE_ATTRIBUTES, so a server's identity has one source rather than
+// one per telemetry vendor.
 //
 // Every exporter speaks OTLP over HTTP, so OTEL_EXPORTER_OTLP_ENDPOINT names
 // the collector's HTTP receiver.
@@ -42,19 +44,21 @@ type providerInitializers struct {
 // Returns the logger and a CleanupFunc that tears down all providers in
 // reverse order (metrics, tracing, logging).
 func Init(
-	ctx context.Context, serviceName, version string,
+	ctx context.Context, serviceName, version, instanceID string,
 ) (*slog.Logger, lifecycle.CleanupFunc, error) {
-	return initProviders(ctx, serviceName, version, providerInitializers{
+	initializers := providerInitializers{
 		logging: logging.Init,
 		tracing: tracing.Init,
 		metrics: metrics.Init,
-	})
+	}
+	return initProviders(ctx, serviceName, version, instanceID, initializers)
 }
 
 func initProviders(
 	ctx context.Context,
 	serviceName string,
 	version string,
+	instanceID string,
 	initializers providerInitializers,
 ) (*slog.Logger, lifecycle.CleanupFunc, error) {
 	// resource.Merge only fails when resources have incompatible schema URLs.
@@ -64,6 +68,7 @@ func initProviders(
 		resource.NewSchemaless(
 			semconv.ServiceName(serviceName),
 			semconv.ServiceVersion(version),
+			semconv.ServiceInstanceID(instanceID),
 		),
 	)
 
