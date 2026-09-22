@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## 0.4.1 - 2026-09-22
+#### Bug Fixes
+- add instance to logging - (1391d37) - Nathan Blair
+
+- - -
+
 ## 0.4.0 - 2026-09-21
 #### Features
 - add service instance ID - (3c5860f) - Nathan Blair
