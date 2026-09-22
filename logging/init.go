@@ -29,7 +29,7 @@ const envVar = "OTEL_LOGS_EXPORTER"
 // for all services.
 var DefaultAttributeLevels = [][]string{
 	{}, // Level 0: message only
-	{"source", "service", "address", "component", "trace_id"}, // Level 1: service-level context
+	{"source", "service", "instance", "address", "component", "trace_id"}, // Level 1: service-level context
 	{"span_id"}, // Level 2: span context
 	{"method"},  // Level 3: operation details
 	{},          // Level 4: unknown attributes
@@ -47,17 +47,22 @@ var DefaultAttributeLevels = [][]string{
 //   - "text" or "flat": tee to stdout in flat text format
 //   - default (including "structured" or empty): tee to stdout in structured format
 //
+// The exported records name the process through the resource; the stdout
+// lines, which have none, carry the service name and instance id as the
+// `service` and `instance` attributes.
+//
 // Returns the logger, a CleanupFunc for the LoggerProvider, and any error.
 func Init(
-	ctx context.Context, res *resource.Resource, serviceName string,
+	ctx context.Context, res *resource.Resource, serviceName, instanceID string,
 ) (*slog.Logger, lifecycle.CleanupFunc, error) {
-	return initLogger(ctx, res, serviceName)
+	return initLogger(ctx, res, serviceName, instanceID)
 }
 
 func initLogger(
 	ctx context.Context,
 	res *resource.Resource,
 	serviceName string,
+	instanceID string,
 	exporterOptions ...otlploghttp.Option,
 ) (*slog.Logger, lifecycle.CleanupFunc, error) {
 	exporterType := os.Getenv(envVar)
@@ -87,7 +92,6 @@ func initLogger(
 	// Create handler AFTER SetLoggerProvider — otelslog captures the global
 	// provider at creation time, not lazily per record.
 	otelHandler := otelslog.NewHandler(serviceName)
-	serviceAttr := slog.String("service", serviceName)
 
 	format := strings.ToLower(os.Getenv("LOG_FORMAT"))
 
@@ -103,11 +107,18 @@ func initLogger(
 		})
 	}
 
+	// The exported records carry these on the resource; stdout has no
+	// resource, so its lines carry them as attributes.
+	stdoutHandler = stdoutHandler.WithAttrs([]slog.Attr{
+		slog.String("service", serviceName),
+		slog.String("instance", instanceID),
+	})
+
 	// SDK errors go to stdout alone. An export failure reported through the
 	// exporter that is failing cannot be delivered, and every attempt creates
 	// another record that fails the same way.
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
-		slog.New(stdoutHandler).With(serviceAttr).Error("otel sdk", "error", err)
+		slog.New(stdoutHandler).Error("otel sdk", "error", err)
 	}))
 
 	// otelslog stamps every exported record with its span on its own; the
@@ -118,7 +129,7 @@ func initLogger(
 		handler = tee.NewHandler(otelHandler, withTrace(stdoutHandler))
 	}
 
-	log := slog.New(handler).With(serviceAttr)
+	log := slog.New(handler)
 
 	// The process logger is what any code reaching for a logger without one in
 	// hand gets, logger.FromContext on a context nothing put a logger into

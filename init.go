@@ -18,7 +18,7 @@ import (
 
 type providerInitializers struct {
 	logging func(
-		context.Context, *resource.Resource, string,
+		context.Context, *resource.Resource, string, string,
 	) (*slog.Logger, lifecycle.CleanupFunc, error)
 	tracing func(
 		context.Context, *resource.Resource,
@@ -75,7 +75,7 @@ func initProviders(
 	var stack lifecycle.Stack
 
 	// Logging first so tracing and metrics init can log.
-	log, logShutdown, err := initializers.logging(ctx, res, serviceName)
+	log, logShutdown, err := initializers.logging(ctx, res, serviceName, instanceID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("logging init: %w", err)
 	}

@@ -98,6 +98,7 @@ func (s *providerStub) initLogging(
 	ctx context.Context,
 	_ *resource.Resource,
 	_ string,
+	_ string,
 ) (*slog.Logger, lifecycle.CleanupFunc, error) {
 	s.checkContext(ctx)
 	if s.loggingErr != nil {

@@ -43,6 +43,7 @@ func TestInit(t *testing.T) {
 				t.Context(),
 				testResource(),
 				"test-service",
+				"instance-1",
 				otlploghttp.WithHTTPClient(testHTTPClient()),
 			)
 			if err != nil {
@@ -66,7 +67,7 @@ func TestInit(t *testing.T) {
 			t.Setenv(envVar, value)
 			t.Setenv("LOG_FORMAT", "structured")
 
-			logger, shutdown, err := Init(t.Context(), testResource(), "test-service")
+			logger, shutdown, err := Init(t.Context(), testResource(), "test-service", "instance-1")
 			if err != nil {
 				t.Fatalf("expected no error, got %v", err)
 			}
@@ -86,7 +87,7 @@ func TestInit(t *testing.T) {
 		t.Setenv(envVar, "none")
 		t.Setenv("LOG_FORMAT", "json")
 
-		if _, _, err := Init(t.Context(), testResource(), "test-service"); err != nil {
+		if _, _, err := Init(t.Context(), testResource(), "test-service", "instance-1"); err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 
@@ -99,7 +100,7 @@ func TestInit(t *testing.T) {
 	t.Run("invalid", func(t *testing.T) {
 		t.Setenv(envVar, "invalid")
 
-		_, shutdown, err := Init(t.Context(), testResource(), "test-service")
+		_, shutdown, err := Init(t.Context(), testResource(), "test-service", "instance-1")
 		if err == nil {
 			t.Fatal("expected error for unsupported exporter")
 		}
@@ -115,6 +116,7 @@ func TestInit(t *testing.T) {
 			t.Context(),
 			testResource(),
 			"test-service",
+			"instance-1",
 			otlploghttp.WithEndpoint("unused.invalid:4318"),
 			otlploghttp.WithInsecure(),
 			otlploghttp.WithTLSClientConfig(&tls.Config{MinVersion: tls.VersionTLS12}),
@@ -131,7 +133,7 @@ func TestInit(t *testing.T) {
 func TestDefaultAttributeLevels(t *testing.T) {
 	want := [][]string{
 		{},
-		{"source", "service", "address", "component", "trace_id"},
+		{"source", "service", "instance", "address", "component", "trace_id"},
 		{"span_id"},
 		{"method"},
 		{},
